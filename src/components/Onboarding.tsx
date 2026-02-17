@@ -3,24 +3,24 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { UserClass, TargetLevel, DailyTime, TimeFrame, PlayerProfile } from '@/lib/gameState';
 
-const classes: { id: UserClass; emoji: string; title: string; desc: string }[] = [
-  { id: 'beginner', emoji: '🌱', title: 'Beginner', desc: 'Never used AI tools before' },
-  { id: 'practitioner', emoji: '⚡', title: 'Practitioner', desc: 'ChatGPT user, new to Claude' },
-  { id: 'builder', emoji: '🔧', title: 'Builder', desc: 'Developer, wants API & Claude Code' },
-  { id: 'architect', emoji: '🧠', title: 'Architect', desc: 'Wants multi-agent systems' },
+const classes: { id: UserClass; emoji: string; title: string; desc: string; flavor: string }[] = [
+  { id: 'beginner', emoji: '🌱', title: 'Newcomer', desc: 'Never used AI tools before', flavor: 'Everyone starts somewhere. You\'ll be dangerous in no time.' },
+  { id: 'practitioner', emoji: '⚡', title: 'Practitioner', desc: 'ChatGPT user, new to Claude', flavor: 'You know AI. Now learn what Claude does differently.' },
+  { id: 'builder', emoji: '🔧', title: 'Builder', desc: 'Developer, wants API & Claude Code', flavor: 'Skip the basics. Go straight to building things.' },
+  { id: 'architect', emoji: '🧠', title: 'Architect', desc: 'Wants multi-agent systems', flavor: 'You want the deep end. Respect.' },
 ];
 
 const targets: { id: TargetLevel; title: string; desc: string }[] = [
-  { id: 'casual', title: 'Casual User', desc: 'Productive daily use' },
+  { id: 'casual', title: 'Productive Daily Use', desc: 'Get more done with Claude every day' },
   { id: 'power', title: 'Power User', desc: 'Projects, Memory, advanced prompting' },
-  { id: 'developer', title: 'Developer', desc: 'API, Claude Code, tool use' },
-  { id: 'agent-designer', title: 'Agent Designer', desc: 'MCP, Skills, multi-agent orchestration' },
+  { id: 'developer', title: 'Developer Integration', desc: 'API, Claude Code, tool use' },
+  { id: 'agent-designer', title: 'Agent Architect', desc: 'MCP, multi-agent orchestration' },
 ];
 
 const times: { value: DailyTime; label: string }[] = [
-  { value: 15, label: '15 min/day' },
-  { value: 30, label: '30 min/day' },
-  { value: 60, label: '1 hour/day' },
+  { value: 15, label: '15 min' },
+  { value: 30, label: '30 min' },
+  { value: 60, label: '1 hour' },
 ];
 
 const frames: { value: TimeFrame; label: string }[] = [
@@ -60,16 +60,19 @@ export default function Onboarding({ onComplete }: Props) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      <div className="grid-bg" />
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-lg w-full"
+        className="max-w-lg w-full relative z-10"
       >
-        {/* Progress dots */}
+        {/* Progress */}
         <div className="flex justify-center gap-2 mb-8">
           {[0,1,2,3].map(i => (
-            <div key={i} className={`w-2.5 h-2.5 rounded-full transition-colors ${i === step ? 'bg-accent' : i < step ? 'bg-accent-dim' : 'bg-border'}`} />
+            <div key={i} className={`h-1 rounded-full transition-all duration-300 ${
+              i === step ? 'w-8 bg-accent' : i < step ? 'w-8 bg-accent-dim' : 'w-8 bg-border'
+            }`} />
           ))}
         </div>
 
@@ -83,18 +86,26 @@ export default function Onboarding({ onComplete }: Props) {
           >
             {step === 0 && (
               <div className="text-center">
-                <div className="text-5xl mb-4">⚔️</div>
-                <h1 className="text-3xl font-bold mb-2">Claude Quest</h1>
-                <p className="text-text-dim mb-8">Master Claude through interactive quests</p>
+                <motion.div
+                  className="text-6xl mb-6"
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  ⚔️
+                </motion.div>
+                <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-accent to-purple bg-clip-text text-transparent">
+                  Claude Quest
+                </h1>
+                <p className="text-text-dim mb-1">Master Claude through interactive challenges</p>
+                <p className="text-xs text-text-faint mb-8">Not just quizzes. Build prompts, spot errors, compare approaches.</p>
                 <div className="mb-6">
-                  <label className="block text-sm text-text-dim mb-2">What should we call you?</label>
                   <input
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && canNext && handleNext()}
-                    placeholder="Your name"
-                    className="w-full bg-surface-2 border border-border rounded-lg px-4 py-3 text-center text-lg focus:outline-none focus:border-accent"
+                    placeholder="What should we call you?"
+                    className="w-full bg-surface-2 border border-border rounded-xl px-4 py-3.5 text-center text-lg focus:outline-none focus:border-accent transition-colors"
                     autoFocus
                   />
                 </div>
@@ -103,23 +114,32 @@ export default function Onboarding({ onComplete }: Props) {
 
             {step === 1 && (
               <div>
-                <h2 className="text-2xl font-bold text-center mb-2">Who are you?</h2>
-                <p className="text-text-dim text-center mb-6">Pick your starting class</p>
+                <h2 className="text-2xl font-bold text-center mb-1">Choose your class</h2>
+                <p className="text-text-dim text-center mb-6 text-sm">This unlocks different starting nodes</p>
                 <div className="grid gap-3">
                   {classes.map(c => (
                     <button
                       key={c.id}
                       onClick={() => setUserClass(c.id)}
-                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all text-left ${
+                      className={`flex items-start gap-4 p-4 rounded-xl border transition-all text-left ${
                         userClass === c.id
-                          ? 'border-accent bg-accent/10 node-glow'
-                          : 'border-border bg-surface hover:border-accent-dim'
+                          ? 'border-accent bg-accent/5 glow-accent'
+                          : 'border-border bg-surface hover:border-border-active'
                       }`}
                     >
-                      <span className="text-3xl">{c.emoji}</span>
+                      <span className="text-3xl mt-0.5">{c.emoji}</span>
                       <div>
                         <div className="font-semibold">{c.title}</div>
                         <div className="text-sm text-text-dim">{c.desc}</div>
+                        {userClass === c.id && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="text-xs text-accent mt-1 italic"
+                          >
+                            {c.flavor}
+                          </motion.div>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -129,17 +149,17 @@ export default function Onboarding({ onComplete }: Props) {
 
             {step === 2 && (
               <div>
-                <h2 className="text-2xl font-bold text-center mb-2">Where do you want to go?</h2>
-                <p className="text-text-dim text-center mb-6">Pick your target mastery level</p>
+                <h2 className="text-2xl font-bold text-center mb-1">Where are you headed?</h2>
+                <p className="text-text-dim text-center mb-6 text-sm">Pick your target mastery level</p>
                 <div className="grid gap-3">
                   {targets.map(t => (
                     <button
                       key={t.id}
                       onClick={() => setTarget(t.id)}
-                      className={`p-4 rounded-lg border transition-all text-left ${
+                      className={`p-4 rounded-xl border transition-all text-left ${
                         target === t.id
-                          ? 'border-accent bg-accent/10 node-glow'
-                          : 'border-border bg-surface hover:border-accent-dim'
+                          ? 'border-accent bg-accent/5 glow-accent'
+                          : 'border-border bg-surface hover:border-border-active'
                       }`}
                     >
                       <div className="font-semibold">{t.title}</div>
@@ -152,19 +172,19 @@ export default function Onboarding({ onComplete }: Props) {
 
             {step === 3 && (
               <div>
-                <h2 className="text-2xl font-bold text-center mb-2">How much time?</h2>
-                <p className="text-text-dim text-center mb-6">Set your pace</p>
+                <h2 className="text-2xl font-bold text-center mb-1">Set your pace</h2>
+                <p className="text-text-dim text-center mb-6 text-sm">No pressure. You can always change this.</p>
                 <div className="mb-6">
-                  <label className="block text-sm text-text-dim mb-3">Daily commitment</label>
+                  <label className="block text-xs text-text-faint uppercase tracking-wider mb-3">Daily time</label>
                   <div className="grid grid-cols-3 gap-2">
                     {times.map(t => (
                       <button
                         key={t.value}
                         onClick={() => setDaily(t.value)}
-                        className={`py-3 px-2 rounded-lg border text-sm font-medium transition-all ${
+                        className={`py-3 rounded-xl border text-sm font-medium transition-all ${
                           daily === t.value
-                            ? 'border-accent bg-accent/10'
-                            : 'border-border bg-surface hover:border-accent-dim'
+                            ? 'border-accent bg-accent/10 text-accent'
+                            : 'border-border bg-surface hover:border-border-active text-text-dim'
                         }`}
                       >
                         {t.label}
@@ -173,16 +193,16 @@ export default function Onboarding({ onComplete }: Props) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm text-text-dim mb-3">Target timeline</label>
+                  <label className="block text-xs text-text-faint uppercase tracking-wider mb-3">Timeline</label>
                   <div className="grid grid-cols-3 gap-2">
                     {frames.map(f => (
                       <button
                         key={f.value}
                         onClick={() => setFrame(f.value)}
-                        className={`py-3 px-2 rounded-lg border text-sm font-medium transition-all ${
+                        className={`py-3 rounded-xl border text-sm font-medium transition-all ${
                           frame === f.value
-                            ? 'border-accent bg-accent/10'
-                            : 'border-border bg-surface hover:border-accent-dim'
+                            ? 'border-accent bg-accent/10 text-accent'
+                            : 'border-border bg-surface hover:border-border-active text-text-dim'
                         }`}
                       >
                         {f.label}
@@ -196,21 +216,21 @@ export default function Onboarding({ onComplete }: Props) {
         </AnimatePresence>
 
         <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
           onClick={handleNext}
           disabled={!canNext}
-          className={`w-full mt-8 py-3 rounded-lg font-semibold text-lg transition-all ${
+          className={`w-full mt-8 py-3.5 rounded-xl font-semibold text-lg transition-all ${
             canNext
-              ? 'bg-accent text-black hover:bg-accent/90'
-              : 'bg-border text-text-dim cursor-not-allowed'
+              ? 'bg-accent text-black hover:bg-accent-bright'
+              : 'bg-border text-text-faint cursor-not-allowed'
           }`}
         >
           {step < 3 ? 'Continue' : 'Begin Your Quest →'}
         </motion.button>
 
         {step > 0 && (
-          <button onClick={() => setStep(step - 1)} className="w-full mt-3 py-2 text-text-dim hover:text-text text-sm">
+          <button onClick={() => setStep(step - 1)} className="w-full mt-3 py-2 text-text-dim hover:text-text text-sm transition-colors">
             ← Back
           </button>
         )}

@@ -1,84 +1,342 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0a0a0f;
-  --color-surface: #12121a;
-  --color-surface-2: #1a1a2e;
-  --color-border: #2a2a3e;
-  --color-accent: #c084fc;
+  --color-bg: #06060e;
+  --color-surface: #0d0d18;
+  --color-surface-2: #151525;
+  --color-surface-3: #1c1c32;
+  --color-border: #252545;
+  --color-border-active: #3a3a6a;
+  --color-accent: #a78bfa;
+  --color-accent-bright: #c4b5fd;
   --color-accent-dim: #7c3aed;
+  --color-accent-glow: rgba(167, 139, 250, 0.3);
   --color-gold: #fbbf24;
+  --color-gold-dim: rgba(251, 191, 36, 0.15);
   --color-green: #34d399;
+  --color-green-dim: rgba(52, 211, 153, 0.15);
   --color-blue: #60a5fa;
+  --color-blue-dim: rgba(96, 165, 250, 0.15);
   --color-red: #f87171;
-  --color-text: #e2e8f0;
-  --color-text-dim: #94a3b8;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --color-red-dim: rgba(248, 113, 113, 0.15);
+  --color-purple: #c084fc;
+  --color-text: #e8eaf6;
+  --color-text-dim: #8b8fb0;
+  --color-text-faint: #5c5f80;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 }
 
-html { background: var(--color-bg); }
+/* === BASE === */
+html {
+  background: var(--color-bg);
+  scroll-behavior: smooth;
+}
 
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
 }
 
-/* Skill tree connector lines */
-.node-connector {
-  position: absolute;
-  background: linear-gradient(to bottom, var(--color-accent-dim), transparent);
-  width: 2px;
+/* === GRID BACKGROUND === */
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
 }
 
-/* Glow effect for active nodes */
-.node-glow {
-  box-shadow: 0 0 20px rgba(192, 132, 252, 0.3), 0 0 40px rgba(192, 132, 252, 0.1);
+.grid-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(167, 139, 250, 0.08) 0%, transparent 60%);
+}
+
+/* === GLOW EFFECTS === */
+.glow-accent {
+  box-shadow:
+    0 0 15px rgba(167, 139, 250, 0.2),
+    0 0 45px rgba(167, 139, 250, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glow-gold {
+  box-shadow:
+    0 0 15px rgba(251, 191, 36, 0.2),
+    0 0 45px rgba(251, 191, 36, 0.1);
+}
+
+.glow-green {
+  box-shadow:
+    0 0 15px rgba(52, 211, 153, 0.2),
+    0 0 45px rgba(52, 211, 153, 0.1);
+}
+
+.glow-red {
+  box-shadow:
+    0 0 15px rgba(248, 113, 113, 0.25),
+    0 0 45px rgba(248, 113, 113, 0.1);
+}
+
+/* === NODE STYLES === */
+.node-circle {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.node-circle::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--color-accent) 60deg,
+    transparent 120deg,
+    transparent 360deg
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: -1;
+}
+
+.node-circle:hover::before {
+  opacity: 0.4;
+  animation: spin-slow 4s linear infinite;
 }
 
 .node-locked {
-  opacity: 0.4;
-  filter: grayscale(0.8);
+  opacity: 0.3;
+  filter: grayscale(0.9) brightness(0.6);
 }
 
-/* XP bar animation */
-@keyframes xp-fill {
-  from { width: 0; }
-}
-.xp-bar-fill {
-  animation: xp-fill 1s ease-out;
+.node-complete {
+  border-color: var(--color-green) !important;
 }
 
-/* Quest card hover */
-.quest-card {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.quest-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+/* === ANIMATIONS === */
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
 }
 
-/* Pulse for available quests */
-@keyframes soft-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-.pulse-available {
-  animation: soft-pulse 2s ease-in-out infinite;
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
-/* Score animation */
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 @keyframes score-pop {
   0% { transform: scale(0.5); opacity: 0; }
-  50% { transform: scale(1.2); }
+  60% { transform: scale(1.15); }
   100% { transform: scale(1); opacity: 1; }
 }
-.score-pop {
-  animation: score-pop 0.5s ease-out;
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--color-bg); }
+@keyframes slide-up {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-100%) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-score-pop { animation: score-pop 0.5s ease-out; }
+.animate-shake { animation: shake 0.4s ease-in-out; }
+.animate-slide-up { animation: slide-up 0.3s ease-out; }
+.animate-gradient { animation: gradient-shift 3s ease infinite; background-size: 200% 200%; }
+
+/* === XP BAR === */
+.xp-bar {
+  background: linear-gradient(90deg, var(--color-accent-dim), var(--color-accent), var(--color-accent-bright));
+  background-size: 200% 100%;
+  animation: gradient-shift 2s ease infinite;
+}
+
+/* === QUEST CARDS === */
+.quest-card {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+  background: linear-gradient(135deg, var(--color-surface-2), var(--color-surface));
+  border: 1px solid var(--color-border);
+}
+
+.quest-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-active);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* === PROMPT DISPLAY === */
+.prompt-display {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-dim);
+}
+
+.prompt-display .tag {
+  color: var(--color-accent);
+}
+
+/* === DRAG AND DROP === */
+.drag-item {
+  cursor: grab;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.drag-item:active {
+  cursor: grabbing;
+}
+
+.drag-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+.drag-item.drag-over {
+  border-color: var(--color-accent);
+  background: rgba(167, 139, 250, 0.05);
+}
+
+/* === OPTION BUTTONS === */
+.option-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.option-btn:hover:not(:disabled) {
+  border-color: var(--color-border-active);
+  background: var(--color-surface-3);
+  transform: translateY(-1px);
+}
+
+.option-btn.correct {
+  border-color: var(--color-green) !important;
+  background: var(--color-green-dim) !important;
+}
+
+.option-btn.wrong {
+  border-color: var(--color-red) !important;
+  background: var(--color-red-dim) !important;
+}
+
+.option-btn.faded {
+  opacity: 0.4;
+}
+
+/* === CONFETTI === */
+.confetti-piece {
+  position: fixed;
+  top: -10px;
+  z-index: 100;
+  pointer-events: none;
+  animation: confetti-fall linear forwards;
+}
+
+/* === TOOLTIPS === */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  background: var(--color-surface-3);
+  color: var(--color-text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+/* === ISSUE CHECKBOX === */
+.issue-check {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.issue-check:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E");
+  background-size: 14px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-border-active); }
+
+/* === GLASS EFFECT === */
+.glass {
+  background: rgba(13, 13, 24, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* === SELECTION === */
+::selection {
+  background: rgba(167, 139, 250, 0.3);
+  color: white;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 640px) {
+  .grid-bg {
+    background-size: 40px 40px;
+  }
+}
