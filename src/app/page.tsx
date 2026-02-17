@@ -1,26 +1,48 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import Onboarding from '@/components/Onboarding';
-import SkillTree from '@/components/SkillTree';
-import QuestPanel from '@/components/QuestPanel';
-import PlayerHUD from '@/components/PlayerHUD';
+import WorldMap from '@/components/WorldMap';
+import BattleArena from '@/components/BattleArena';
+import GameHUD from '@/components/GameHUD';
+import CharacterPanel from '@/components/CharacterPanel';
+import VictoryScreen from '@/components/VictoryScreen';
+import DefeatScreen from '@/components/DefeatScreen';
 import Achievements from '@/components/Achievements';
-import Confetti from '@/components/Confetti';
-import { loadState, saveState, resetState, updateStreak, getLevelInfo, checkAchievements, ACHIEVEMENT_DEFS, playSound, type GameState, type PlayerProfile } from '@/lib/gameState';
-import { skillNodes, type SkillNode } from '@/data/quests';
+import { loadState, saveState, resetState, updateStreak, getLevelInfo, checkAchievements, ACHIEVEMENT_DEFS, type GameState, type PlayerProfile } from '@/lib/gameState';
+import { skillNodes, type SkillNode, type Quest } from '@/data/quests';
+import { getEnemyForQuest, type Enemy } from '@/lib/enemies';
+import { getPlayerStats, type BattleState } from '@/lib/battleEngine';
+import { getLoot, type Item, type Equipment, DEFAULT_EQUIPMENT } from '@/lib/items';
+import { playSound } from '@/lib/sounds';
+
+type Screen = 'map' | 'battle' | 'victory' | 'defeat';
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [selectedNode, setSelectedNode] = useState<SkillNode | null>(null);
-  const [levelUpMsg, setLevelUpMsg] = useState<string | null>(null);
-  const [achievementMsg, setAchievementMsg] = useState<string | null>(null);
+  const [screen, setScreen] = useState<Screen>('map');
+  const [activeQuest, setActiveQuest] = useState<Quest | null>(null);
+  const [activeNode, setActiveNode] = useState<SkillNode | null>(null);
+  const [activeEnemy, setActiveEnemy] = useState<Enemy | null>(null);
+  const [lastBattleState, setLastBattleState] = useState<BattleState | null>(null);
+  const [lastXpEarned, setLastXpEarned] = useState(0);
+  const [lastXpBonus, setLastXpBonus] = useState(0);
+  const [lastLoot, setLastLoot] = useState<Item | null>(null);
+  const [showCharacter, setShowCharacter] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [levelUpMsg, setLevelUpMsg] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const s = loadState();
+    // Migrate old save data
+    if (s.profile && !s.equipment) {
+      s.equipment = DEFAULT_EQUIPMENT;
+      s.inventory = [];
+      s.gold = 0;
+      s.totalKills = 0;
+      s.maxComboEver = 0;
+    }
     setGameState(s);
     setLoaded(true);
   }, []);
@@ -32,15 +54,11 @@ export default function Home() {
 
   function handleOnboard(profile: PlayerProfile) {
     const baseUnlocks = ['basics'];
-    if (profile.userClass === 'practitioner') {
-      baseUnlocks.push('prompting', 'projects-memory');
-    } else if (profile.userClass === 'builder') {
-      baseUnlocks.push('prompting', 'projects-memory', 'context-eng', 'artifacts', 'api-sdk', 'claude-code');
-    } else if (profile.userClass === 'architect') {
-      baseUnlocks.push('prompting', 'projects-memory', 'context-eng', 'artifacts', 'api-sdk', 'claude-code', 'tool-use');
-    }
+    if (profile.userClass === 'practitioner') baseUnlocks.push('prompting', 'projects-memory');
+    else if (profile.userClass === 'builder') baseUnlocks.push('prompting', 'projects-memory', 'context-eng', 'artifacts', 'api-sdk', 'claude-code');
+    else if (profile.userClass === 'architect') baseUnlocks.push('prompting', 'projects-memory', 'context-eng', 'artifacts', 'api-sdk', 'claude-code', 'tool-use');
 
-    const newState: GameState = {
+    persist({
       profile,
       xp: 0,
       level: 1,
@@ -53,78 +71,141 @@ export default function Home() {
       soundEnabled: true,
       totalQuestAttempts: 0,
       perfectQuests: 0,
-    };
-    persist(newState);
+      equipment: DEFAULT_EQUIPMENT,
+      inventory: [],
+      gold: 0,
+      totalKills: 0,
+      maxComboEver: 0,
+    });
   }
 
-  function handleCompleteQuest(questId: string, score: number, xp: number) {
-    if (!gameState) return;
+  function handleSelectQuest(quest: Quest, node: SkillNode) {
+    const enemy = getEnemyForQuest(quest.id, node.id, quest.type);
+    setActiveQuest(quest);
+    setActiveNode(node);
+    setActiveEnemy(enemy);
+    setScreen('battle');
+    playSound('questEnter');
+  }
 
-    const oldLevel = getLevelInfo(gameState.xp).level;
-    let newState = updateStreak(gameState);
+  function handleBattleComplete(score: number, xp: number, battleState: BattleState) {
+    if (!gameState || !activeQuest || !activeNode) return;
 
-    const streakBonus = newState.streak >= 3 ? 25 : 0;
-    const totalXp = xp + streakBonus;
+    setLastBattleState(battleState);
 
-    newState = {
-      ...newState,
-      xp: newState.xp + totalXp,
-      totalQuestAttempts: newState.totalQuestAttempts + 1,
-      perfectQuests: score === 100 ? newState.perfectQuests + 1 : newState.perfectQuests,
-      completedQuests: {
-        ...newState.completedQuests,
-        [questId]: { questId, completed: true, score, completedAt: Date.now() },
-      },
-    };
+    if (battleState.status === 'victory' && score > 0) {
+      // Calculate XP with bonuses
+      const oldLevel = getLevelInfo(gameState.xp).level;
+      let newState = updateStreak(gameState);
 
-    // Check node unlocks
-    for (const node of skillNodes) {
-      if (newState.unlockedNodes.includes(node.id)) continue;
-      const allReqsMet = node.requires.every(reqId => {
-        const reqNode = skillNodes.find(n => n.id === reqId);
-        if (!reqNode) return false;
-        const completedCount = reqNode.quests.filter(q => newState.completedQuests[q.id]?.completed).length;
-        return completedCount >= Math.ceil(reqNode.quests.length / 2);
-      });
-      if (allReqsMet) {
-        newState = { ...newState, unlockedNodes: [...newState.unlockedNodes, node.id] };
+      const streakBonus = newState.streak >= 3 ? 25 : 0;
+      const eqXpBonus = Math.round(xp * ((newState.equipment?.weapon?.stats?.xpBonus || 0) + (newState.equipment?.armor?.stats?.xpBonus || 0) + (newState.equipment?.accessory?.stats?.xpBonus || 0)) / 100);
+      const totalXp = xp + streakBonus + eqXpBonus;
+
+      setLastXpEarned(totalXp);
+      setLastXpBonus(streakBonus + eqXpBonus);
+
+      // Loot
+      const loot = getLoot(activeNode.tier, activeQuest.type === 'boss');
+      setLastLoot(loot);
+
+      newState = {
+        ...newState,
+        xp: newState.xp + totalXp,
+        totalQuestAttempts: newState.totalQuestAttempts + 1,
+        perfectQuests: score === 100 ? newState.perfectQuests + 1 : newState.perfectQuests,
+        totalKills: newState.totalKills + 1,
+        maxComboEver: Math.max(newState.maxComboEver, battleState.maxCombo),
+        completedQuests: {
+          ...newState.completedQuests,
+          [activeQuest.id]: { questId: activeQuest.id, completed: true, score, completedAt: Date.now() },
+        },
+      };
+
+      // Add loot to inventory
+      if (loot) {
+        newState = { ...newState, inventory: [...(newState.inventory || []), loot] };
+        playSound('itemDrop');
       }
-    }
 
-    // Check level up
-    const newLevel = getLevelInfo(newState.xp).level;
-    if (newLevel > oldLevel) {
-      const info = getLevelInfo(newState.xp);
-      setLevelUpMsg(`${info.emoji} Level Up! You're now ${info.title}`);
-      setShowConfetti(true);
-      if (newState.soundEnabled) playSound('levelup');
-      setTimeout(() => { setLevelUpMsg(null); setShowConfetti(false); }, 4000);
-    }
+      // Gold from quest
+      const goldEarned = Math.round(xp * 0.5) + (activeQuest.type === 'boss' ? 50 : 10);
+      newState = { ...newState, gold: (newState.gold || 0) + goldEarned };
 
-    // Check achievements
-    const newAchievements = checkAchievements(newState);
-    if (newAchievements.length > 0) {
-      const achievements = { ...newState.achievements };
-      for (const id of newAchievements) {
-        const def = ACHIEVEMENT_DEFS.find(a => a.id === id);
-        if (def) {
-          achievements[id] = { ...def, unlockedAt: Date.now() };
+      // Unlock nodes
+      for (const node of skillNodes) {
+        if (newState.unlockedNodes.includes(node.id)) continue;
+        const allReqsMet = node.requires.every(reqId => {
+          const reqNode = skillNodes.find(n => n.id === reqId);
+          if (!reqNode) return false;
+          const completedCount = reqNode.quests.filter(q => newState.completedQuests[q.id]?.completed).length;
+          return completedCount >= Math.ceil(reqNode.quests.length / 2);
+        });
+        if (allReqsMet) newState = { ...newState, unlockedNodes: [...newState.unlockedNodes, node.id] };
+      }
+
+      // Level up check
+      const newLevel = getLevelInfo(newState.xp).level;
+      if (newLevel > oldLevel) {
+        const info = getLevelInfo(newState.xp);
+        setLevelUpMsg(`${info.emoji} Level Up! ${info.title}`);
+        playSound('levelup');
+        setTimeout(() => setLevelUpMsg(null), 4000);
+      }
+
+      // Achievements
+      const newAchs = checkAchievements(newState);
+      if (newAchs.length > 0) {
+        const achievements = { ...newState.achievements };
+        for (const id of newAchs) {
+          const def = ACHIEVEMENT_DEFS.find(a => a.id === id);
+          if (def) achievements[id] = { ...def, unlockedAt: Date.now() };
         }
+        newState = { ...newState, achievements };
       }
-      newState = { ...newState, achievements };
 
-      // Show first new achievement
-      const first = ACHIEVEMENT_DEFS.find(a => a.id === newAchievements[0]);
-      if (first) {
-        setTimeout(() => {
-          setAchievementMsg(`${first.emoji} ${first.title}`);
-          if (newState.soundEnabled) playSound('achievement');
-          setTimeout(() => setAchievementMsg(null), 3000);
-        }, newLevel > oldLevel ? 2500 : 500);
-      }
+      persist(newState);
+      setScreen('victory');
+      playSound('victory');
+    } else {
+      setLastXpEarned(0);
+      setLastXpBonus(0);
+      setLastLoot(null);
+      setScreen('defeat');
+      playSound('defeat');
     }
+  }
 
-    persist(newState);
+  function handleEquip(item: Item) {
+    if (!gameState) return;
+    const equipment: Equipment = { ...(gameState.equipment || DEFAULT_EQUIPMENT) };
+    equipment[item.type] = item;
+    persist({ ...gameState, equipment });
+  }
+
+  function handleRetry() {
+    if (activeQuest && activeNode) {
+      const enemy = getEnemyForQuest(activeQuest.id, activeNode.id, activeQuest.type);
+      setActiveEnemy(enemy);
+      setScreen('battle');
+      playSound('questEnter');
+    }
+  }
+
+  function handleBackToMap() {
+    setScreen('map');
+    setActiveQuest(null);
+    setActiveNode(null);
+    setActiveEnemy(null);
+  }
+
+  function handleReset() {
+    if (confirm('Reset ALL progress? Equipment, inventory, everything. Cannot be undone.')) {
+      resetState();
+      setGameState(loadState());
+      setScreen('map');
+      setActiveQuest(null);
+    }
   }
 
   function handleToggleSound() {
@@ -132,24 +213,10 @@ export default function Home() {
     persist({ ...gameState, soundEnabled: !gameState.soundEnabled });
   }
 
-  function handleReset() {
-    if (confirm('Reset all progress? This cannot be undone.')) {
-      resetState();
-      setGameState(loadState());
-      setSelectedNode(null);
-    }
-  }
-
   if (!loaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <motion.div
-          animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          className="text-3xl"
-        >
-          ⚔️
-        </motion.div>
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="text-3xl animate-pulse">⚔️</div>
       </div>
     );
   }
@@ -158,90 +225,79 @@ export default function Home() {
     return <Onboarding onComplete={handleOnboard} />;
   }
 
-  return (
-    <div className="min-h-screen relative">
-      <div className="grid-bg" />
-      <Confetti active={showConfetti} />
+  const playerStats = getPlayerStats(gameState.equipment || DEFAULT_EQUIPMENT, getLevelInfo(gameState.xp).level);
 
-      <PlayerHUD
-        gameState={gameState}
-        onReset={handleReset}
-        onToggleSound={handleToggleSound}
-        onShowAchievements={() => setShowAchievements(true)}
-      />
+  return (
+    <div className="min-h-screen bg-bg relative">
+      <div className="grid-bg" />
+
+      {/* HUD — always visible on map */}
+      {screen === 'map' && (
+        <GameHUD
+          gameState={gameState}
+          onOpenCharacter={() => setShowCharacter(true)}
+          onShowAchievements={() => setShowAchievements(true)}
+          onToggleSound={handleToggleSound}
+          onReset={handleReset}
+        />
+      )}
 
       {/* Level up toast */}
       <AnimatePresence>
         {levelUpMsg && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-accent-dim to-accent text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-accent/30"
-          >
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[80] bg-gradient-to-r from-accent-dim to-accent text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-accent/30 animate-bounce-in">
             {levelUpMsg}
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* Achievement toast */}
-      <AnimatePresence>
-        {achievementMsg && (
-          <motion.div
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 100 }}
-            className="fixed top-20 right-4 z-50 bg-surface border border-gold/30 px-5 py-3 rounded-xl shadow-lg glow-gold"
-          >
-            <div className="text-xs text-gold uppercase tracking-wider mb-0.5">Achievement Unlocked</div>
-            <div className="font-bold text-sm">{achievementMsg}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Main screens */}
+      {screen === 'map' && (
+        <WorldMap
+          gameState={gameState}
+          onSelectQuest={handleSelectQuest}
+          onOpenCharacter={() => setShowCharacter(true)}
+        />
+      )}
 
-      {/* Main content */}
-      <div className="max-w-4xl mx-auto px-4 py-8 relative z-10">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-1 bg-gradient-to-r from-accent to-purple bg-clip-text text-transparent inline-block">
-            Skill Tree
-          </h1>
-          <p className="text-sm text-text-dim">
-            Complete quests to unlock new paths
-          </p>
-        </div>
+      {screen === 'battle' && activeQuest && activeEnemy && (
+        <BattleArena
+          quest={activeQuest}
+          enemy={activeEnemy}
+          playerStats={playerStats}
+          soundEnabled={gameState.soundEnabled}
+          onComplete={handleBattleComplete}
+          onFlee={handleBackToMap}
+        />
+      )}
 
-        <SkillTree gameState={gameState} onSelectNode={setSelectedNode} />
+      {screen === 'victory' && activeQuest && lastBattleState && (
+        <VictoryScreen
+          quest={activeQuest}
+          battleState={lastBattleState}
+          xpEarned={lastXpEarned}
+          xpBonus={lastXpBonus}
+          loot={lastLoot}
+          onContinue={handleBackToMap}
+        />
+      )}
 
-        {/* Footer */}
-        <div className="text-center mt-16 pt-8 border-t border-border/50">
-          <p className="text-xs text-text-faint">
-            Content sourced from{' '}
-            <a href="https://sara-kukovec.github.io/Learn-Claude/" target="_blank" rel="noopener noreferrer" className="text-accent/70 hover:text-accent transition-colors">
-              Learn Claude
-            </a>{' '}
-            by Sara Kukovec
-          </p>
-          <p className="text-xs text-text-faint mt-1">
-            Built by{' '}
-            <a href="https://imjustbob.com" target="_blank" rel="noopener noreferrer" className="text-accent/70 hover:text-accent transition-colors">
-              Bob
-            </a>
-            {' '}· Open source on{' '}
-            <a href="https://github.com/CyglerAI/claude-quest" target="_blank" rel="noopener noreferrer" className="text-accent/70 hover:text-accent transition-colors">
-              GitHub
-            </a>
-          </p>
-        </div>
-      </div>
+      {screen === 'defeat' && activeQuest && activeEnemy && (
+        <DefeatScreen
+          quest={activeQuest}
+          enemy={activeEnemy}
+          onRetry={handleRetry}
+          onFlee={handleBackToMap}
+        />
+      )}
 
       {/* Overlays */}
       <AnimatePresence>
-        {selectedNode && (
-          <QuestPanel
-            node={selectedNode}
+        {showCharacter && (
+          <CharacterPanel
             gameState={gameState}
-            onCompleteQuest={handleCompleteQuest}
-            onClose={() => setSelectedNode(null)}
+            onEquip={handleEquip}
+            onClose={() => setShowCharacter(false)}
           />
         )}
       </AnimatePresence>
@@ -254,6 +310,18 @@ export default function Home() {
           />
         )}
       </AnimatePresence>
+
+      {/* Footer */}
+      {screen === 'map' && (
+        <div className="text-center py-8 border-t border-border/20">
+          <p className="text-[10px] text-text-faint">
+            Content from{' '}
+            <a href="https://sara-kukovec.github.io/Learn-Claude/" target="_blank" rel="noopener noreferrer" className="text-accent/50 hover:text-accent">Learn Claude</a>
+            {' '}by Sara Kukovec · Built by{' '}
+            <a href="https://imjustbob.com" target="_blank" rel="noopener noreferrer" className="text-accent/50 hover:text-accent">Bob</a>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

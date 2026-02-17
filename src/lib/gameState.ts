@@ -1,5 +1,8 @@
 // Game state management — all localStorage, no backend needed
 
+import type { Equipment, Item } from './items';
+import { DEFAULT_EQUIPMENT } from './items';
+
 export type UserClass = 'beginner' | 'practitioner' | 'builder' | 'architect';
 export type TargetLevel = 'casual' | 'power' | 'developer' | 'agent-designer';
 export type DailyTime = 15 | 30 | 60;
@@ -42,6 +45,12 @@ export interface GameState {
   soundEnabled: boolean;
   totalQuestAttempts: number;
   perfectQuests: number; // 100% score
+  // RPG system
+  equipment: Equipment;
+  inventory: Item[];
+  gold: number;
+  totalKills: number;
+  maxComboEver: number;
 }
 
 const STORAGE_KEY = 'claude-quest-state';
@@ -59,6 +68,11 @@ const DEFAULT_STATE: GameState = {
   soundEnabled: true,
   totalQuestAttempts: 0,
   perfectQuests: 0,
+  equipment: DEFAULT_EQUIPMENT,
+  inventory: [],
+  gold: 0,
+  totalKills: 0,
+  maxComboEver: 0,
 };
 
 export function loadState(): GameState {
@@ -180,78 +194,7 @@ export function checkAchievements(state: GameState): string[] {
   return newAchievements;
 }
 
-// Sound effects using Web Audio API
-let audioCtx: AudioContext | null = null;
-
-function getAudioCtx(): AudioContext {
-  if (!audioCtx) audioCtx = new AudioContext();
-  return audioCtx;
-}
-
-export function playSound(type: 'correct' | 'wrong' | 'levelup' | 'achievement' | 'click' | 'complete') {
-  try {
-    const ctx = getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    switch (type) {
-      case 'correct':
-        osc.frequency.setValueAtTime(523, ctx.currentTime);
-        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-        break;
-      case 'wrong':
-        osc.frequency.setValueAtTime(200, ctx.currentTime);
-        osc.frequency.setValueAtTime(150, ctx.currentTime + 0.15);
-        osc.type = 'sawtooth';
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-        break;
-      case 'levelup':
-        osc.frequency.setValueAtTime(392, ctx.currentTime);
-        osc.frequency.setValueAtTime(523, ctx.currentTime + 0.15);
-        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.3);
-        osc.frequency.setValueAtTime(784, ctx.currentTime + 0.45);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.7);
-        break;
-      case 'achievement':
-        osc.frequency.setValueAtTime(440, ctx.currentTime);
-        osc.frequency.setValueAtTime(554, ctx.currentTime + 0.1);
-        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.2);
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3);
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.6);
-        break;
-      case 'click':
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        gain.gain.setValueAtTime(0.05, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.05);
-        break;
-      case 'complete':
-        osc.frequency.setValueAtTime(523, ctx.currentTime);
-        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.12);
-        osc.frequency.setValueAtTime(784, ctx.currentTime + 0.24);
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-        break;
-    }
-  } catch {
-    // Audio not available, silently ignore
-  }
-}
+// Sound effects moved to src/lib/sounds.ts
+// Re-export for backward compatibility
+export { playSound } from './sounds';
+export type { SoundType } from './sounds';
