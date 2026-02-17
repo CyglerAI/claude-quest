@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0a0a0f;
+  --color-surface: #12121a;
+  --color-surface-2: #1a1a2e;
+  --color-border: #2a2a3e;
+  --color-accent: #c084fc;
+  --color-accent-dim: #7c3aed;
+  --color-gold: #fbbf24;
+  --color-green: #34d399;
+  --color-blue: #60a5fa;
+  --color-red: #f87171;
+  --color-text: #e2e8f0;
+  --color-text-dim: #94a3b8;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html { background: var(--color-bg); }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Skill tree connector lines */
+.node-connector {
+  position: absolute;
+  background: linear-gradient(to bottom, var(--color-accent-dim), transparent);
+  width: 2px;
+  pointer-events: none;
+}
+
+/* Glow effect for active nodes */
+.node-glow {
+  box-shadow: 0 0 20px rgba(192, 132, 252, 0.3), 0 0 40px rgba(192, 132, 252, 0.1);
+}
+
+.node-locked {
+  opacity: 0.4;
+  filter: grayscale(0.8);
+}
+
+/* XP bar animation */
+@keyframes xp-fill {
+  from { width: 0; }
+}
+.xp-bar-fill {
+  animation: xp-fill 1s ease-out;
+}
+
+/* Quest card hover */
+.quest-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.quest-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Pulse for available quests */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.pulse-available {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* Score animation */
+@keyframes score-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.score-pop {
+  animation: score-pop 0.5s ease-out;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
